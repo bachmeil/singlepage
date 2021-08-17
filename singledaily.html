@@ -1,0 +1,72 @@
+<div style="max-width: 800px; margin: auto;"><button id="thebutton">Save</button><br><br> <textarea id="ta" cols="50"></textarea><br><br><a href="?name=index">Index</a> <a href="?name=thoughts">Thoughts</a>
+<link rel="stylesheet" href="https://unpkg.com/easymde/dist/easymde.min.css">
+</div>
+<script src="https://unpkg.com/easymde/dist/easymde.min.js"></script>
+<script type="module">
+import { Octokit, App } from "https://cdn.skypack.dev/octokit";
+
+var repo_token = "";
+var repo_owner = "";
+var repo_name = "";
+
+var cd = new Date();
+var filename = cd.toISOString().substr(0,10) + ".md";
+var searchParams = new URLSearchParams(location.search);
+if (searchParams.has("name")) {
+  filename = searchParams.get("name") + ".md";
+}
+
+const octokit = new Octokit({ auth: repo_token });
+try {
+var data = await octokit.rest.repos.getContent({
+owner: repo_owner,
+repo: repo_name,
+path: cd.getFullYear() + '/' + (cd.getMonth()+1) + '/' + filename,
+});
+} catch {
+}
+var tmp = "";
+var sha = "";
+if (data) {
+tmp = atob(data.data.content);
+sha = data['data']['sha'];
+}
+var easyMDE = new EasyMDE({ maxHeight: "70%"});
+easyMDE.value(tmp);
+if (data) {
+if (!easyMDE.isPreviewActive()) {
+easyMDE.togglePreview();
+}
+} else {
+if (easyMDE.isPreviewActive()) {
+easyMDE.togglePreview();
+}
+}
+async function updateFile() {
+if (sha === "") {
+var data = await octokit.request('PUT /repos/' + repo_owner + '/' + repo_name + '/contents/' + cd.getFullYear() + '/' + (cd.getMonth()+1) + '/' + filename, {
+owner: repo_owner,
+repo: repo_name,
+path: cd.getFullYear() + '/' + (cd.getMonth()+1) + '/' + filename,
+message: 'nm',
+content: btoa(easyMDE.value())
+})
+sha = data.data.content.sha;
+} else {
+console.log(sha);
+var data = await octokit.request('PUT /repos/' + repo_owner + '/' + repo_name + '/contents/' + cd.getFullYear() + '/' + (cd.getMonth()+1) + '/' + filename, {
+owner: repo_owner,
+repo: repo_name,
+path: cd.getFullYear() + '/' + (cd.getMonth()+1) + '/' + filename,
+message: 'nm',
+sha: sha,
+content: btoa(easyMDE.value())
+})
+console.log(data.data.content.sha);
+sha = data.data.content.sha;
+}
+easyMDE.togglePreview();
+}
+document.getElementById("thebutton").addEventListener("click", updateFile);
+</script>
+
