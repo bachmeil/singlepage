@@ -25,19 +25,28 @@
 </style>
 
 <div style="max-width: 800px; margin: auto;">
-	<button id="thebutton">Save</button> <button id="timestamp">Time</button> <button id="newitem">&#10010;</button> <button id="newchecklist">&#9745;</button> <br><br> <textarea id="ta" cols="50"></textarea>
-<a href="?">Today</a> <a href="?prev=1">Yesterday</a> 
-<link rel="stylesheet" href="https://unpkg.com/easymde/dist/easymde.min.css">
+	<button id="thebutton">Save</button> <button id="timestamp">Time</button> <button id="newitem">&#10010;</button> <button id="newchecklist">&#9745;</button> <br><br> <textarea></textarea>
+	<a href="?">Today</a> <a href="?prev=1">Yesterday</a> 
 </div>
+
 <script src="repoinfo.js"></script>
 <script src="https://unpkg.com/easymde/dist/easymde.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/easymde/dist/easymde.min.css">
+
 <script type="module">
 import { Octokit, App } from "https://cdn.skypack.dev/octokit";
 
 var repo_name = daily_repo;
 
+//~ Filename for today's note
+//~ Usually what you want
 var cd = new Date();
 var filename = cd.getFullYear() + '/' + (cd.getMonth()+1) + '/' + cd.toISOString().substr(0,10) + ".md";
+
+//~ Currently supports two parameters
+//~ name: Load a file directly
+//~ prev: Note from the specified number of days before today
+//~ Other parameters will be supported in the future
 var searchParams = new URLSearchParams(location.search);
 
 // If you've specified name (with the full path) use that
@@ -52,58 +61,64 @@ if (searchParams.has("prev")) {
 }
 
 const octokit = new Octokit({ auth: repo_token });
+
+//~ This is similar to the singlewiki.html file
+//~ Check there for comments
 try {
-var data = await octokit.rest.repos.getContent({
-owner: repo_owner,
-repo: repo_name,
-path: filename,
-});
+	var data = await octokit.rest.repos.getContent({
+	owner: repo_owner,
+	repo: repo_name,
+	path: filename,
+	});
 } catch {
 }
+
 var tmp = "";
 var sha = "";
 if (data) {
-tmp = atob(data.data.content);
-sha = data['data']['sha'];
+	tmp = atob(data.data.content);
+	sha = data['data']['sha'];
 }
 var easyMDE = new EasyMDE({ 
 	maxHeight: "70%", 
 	spellChecker: false,
 });
 easyMDE.value(tmp);
+
 if (data) {
-if (!easyMDE.isPreviewActive()) {
-easyMDE.togglePreview();
-}
+	if (!easyMDE.isPreviewActive()) {
+		easyMDE.togglePreview();
+	}
 } else {
-if (easyMDE.isPreviewActive()) {
-easyMDE.togglePreview();
+	if (easyMDE.isPreviewActive()) {
+		easyMDE.togglePreview();
+	}
 }
-}
+
 async function updateFile() {
-if (sha === "") {
-var data = await octokit.request('PUT /repos/' + repo_owner + '/' + repo_name + '/contents/' + filename, {
-owner: repo_owner,
-repo: repo_name,
-path: filename,
-message: 'nm',
-content: btoa(easyMDE.value())
-})
-sha = data.data.content.sha;
-} else {
-console.log(sha);
-var data = await octokit.request('PUT /repos/' + repo_owner + '/' + repo_name + '/contents/' + filename, {
-owner: repo_owner,
-repo: repo_name,
-path: filename,
-message: 'nm',
-sha: sha,
-content: btoa(easyMDE.value())
-})
-console.log(data.data.content.sha);
-sha = data.data.content.sha;
-}
-easyMDE.togglePreview();
+	if (sha === "") {
+		var data = await octokit.request('PUT /repos/' + repo_owner + '/' + repo_name + '/contents/' + filename, {
+			owner: repo_owner,
+			repo: repo_name,
+			path: filename,
+			message: 'nm',
+			content: btoa(easyMDE.value())
+		})
+		sha = data.data.content.sha;
+	} else {
+		console.log(sha);
+		var data = await octokit.request('PUT /repos/' + repo_owner + '/' + repo_name + '/contents/' + filename, {
+			owner: repo_owner,
+			repo: repo_name,
+			path: filename,
+			message: 'nm',
+			sha: sha,
+			content: btoa(easyMDE.value())
+		})
+		console.log(data.data.content.sha);
+		sha = data.data.content.sha;
+	}
+	easyMDE.togglePreview();
 }
 document.getElementById("thebutton").addEventListener("click", updateFile);
 
