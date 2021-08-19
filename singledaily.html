@@ -1,19 +1,52 @@
-<div style="max-width: 800px; margin: auto;"><button id="thebutton">Save</button><br><br> <textarea id="ta" cols="50"></textarea><br><br><a href="?name=index">Index</a> <a href="?name=thoughts">Thoughts</a>
+<style>
+.CodeMirror-lines {
+    font-family: Source Code Pro, Ubuntu Mono;
+    font-size: 122%;
+}
+
+.editor-preview {
+    font-family: Roboto;
+    font-size: 118%;
+}
+
+a {
+    font-family: Ubuntu;
+    font-size: 118%;
+}
+
+button {
+    background-color: white;
+    border: 1px silver solid;
+    padding: 5px;
+    border-radius: 4px;
+    font-family: Ubuntu;
+    font-size: 100%;
+}
+</style>
+<div style="max-width: 800px; margin: auto;"><button id="thebutton">Save</button> <button id="timestamp">Time</button> <button id="newitem">&#10010;</button> <button id="newchecklist">&#9745;</button> <br><br> <textarea id="ta" cols="50"></textarea>
+<a href="?">Today</a> <a href="?prev=1">Yesterday</a> 
 <link rel="stylesheet" href="https://unpkg.com/easymde/dist/easymde.min.css">
 </div>
+<script src="repoinfo.js"></script>
 <script src="https://unpkg.com/easymde/dist/easymde.min.js"></script>
 <script type="module">
 import { Octokit, App } from "https://cdn.skypack.dev/octokit";
 
-var repo_token = "";
-var repo_owner = "";
-var repo_name = "";
+var repo_name = daily_repo;
 
 var cd = new Date();
-var filename = cd.toISOString().substr(0,10) + ".md";
+var filename = cd.getFullYear() + '/' + (cd.getMonth()+1) + '/' + cd.toISOString().substr(0,10) + ".md";
 var searchParams = new URLSearchParams(location.search);
+
+// If you've specified name (with the full path) use that
 if (searchParams.has("name")) {
   filename = searchParams.get("name") + ".md";
+}
+
+// If you've specified prev, go back that number of days
+if (searchParams.has("prev")) {
+	cd.setDate(cd.getDate() - parseInt(searchParams.get("prev")));
+	filename = cd.getFullYear() + '/' + (cd.getMonth()+1) + '/' + cd.toISOString().substr(0,10) + ".md";
 }
 
 const octokit = new Octokit({ auth: repo_token });
@@ -21,7 +54,7 @@ try {
 var data = await octokit.rest.repos.getContent({
 owner: repo_owner,
 repo: repo_name,
-path: cd.getFullYear() + '/' + (cd.getMonth()+1) + '/' + filename,
+path: filename,
 });
 } catch {
 }
@@ -31,7 +64,10 @@ if (data) {
 tmp = atob(data.data.content);
 sha = data['data']['sha'];
 }
-var easyMDE = new EasyMDE({ maxHeight: "70%"});
+var easyMDE = new EasyMDE({ 
+	maxHeight: "70%", 
+	spellChecker: false,
+});
 easyMDE.value(tmp);
 if (data) {
 if (!easyMDE.isPreviewActive()) {
@@ -44,20 +80,20 @@ easyMDE.togglePreview();
 }
 async function updateFile() {
 if (sha === "") {
-var data = await octokit.request('PUT /repos/' + repo_owner + '/' + repo_name + '/contents/' + cd.getFullYear() + '/' + (cd.getMonth()+1) + '/' + filename, {
+var data = await octokit.request('PUT /repos/' + repo_owner + '/' + repo_name + '/contents/' + filename, {
 owner: repo_owner,
 repo: repo_name,
-path: cd.getFullYear() + '/' + (cd.getMonth()+1) + '/' + filename,
+path: filename,
 message: 'nm',
 content: btoa(easyMDE.value())
 })
 sha = data.data.content.sha;
 } else {
 console.log(sha);
-var data = await octokit.request('PUT /repos/' + repo_owner + '/' + repo_name + '/contents/' + cd.getFullYear() + '/' + (cd.getMonth()+1) + '/' + filename, {
+var data = await octokit.request('PUT /repos/' + repo_owner + '/' + repo_name + '/contents/' + filename, {
 owner: repo_owner,
 repo: repo_name,
-path: cd.getFullYear() + '/' + (cd.getMonth()+1) + '/' + filename,
+path: filename,
 message: 'nm',
 sha: sha,
 content: btoa(easyMDE.value())
@@ -68,5 +104,59 @@ sha = data.data.content.sha;
 easyMDE.togglePreview();
 }
 document.getElementById("thebutton").addEventListener("click", updateFile);
-</script>
 
+function timestamp() {
+	var ct = new Date();
+	var h = ct.getHours();
+	var m = ct.getMinutes();
+	var ampm = "AM";
+	if (h > 11) {
+		ampm = "PM";
+	}
+	if (h > 12) {
+		h = h - 12;
+	}
+	var mstr = '' + m;
+	if (m < 10) {
+		mstr = '0' + m;
+	}
+	return h + ":" + mstr + " " + ampm;
+}
+
+function insertTimestamp() {
+	var doc = easyMDE.codemirror.getDoc();
+	var cursor = easyMDE.codemirror.getCursor();
+	doc.replaceRange('**' + timestamp() + '** ', cursor);
+	easyMDE.codemirror.focus();
+}
+document.getElementById("timestamp").addEventListener("click", insertTimestamp);
+
+function newItem() {
+	if (easyMDE.isPreviewActive()) {
+		easyMDE.togglePreview();
+	}
+	var doc = easyMDE.codemirror.getDoc();
+	doc.setCursor(doc.lastLine()+1)
+	var cursor = easyMDE.codemirror.getCursor();
+	doc.replaceRange("\n\n## " + timestamp() + "\n\n", cursor);
+	easyMDE.codemirror.focus();
+	easyMDE.codemirror.scrollIntoView(doc.lastLine());
+}
+document.getElementById("newitem").addEventListener("click", newItem);
+
+function newCheckList() {
+	var doc = easyMDE.codemirror.getDoc();
+	var cursor = easyMDE.codemirror.getCursor();
+	doc.replaceRange('- [ ] ', cursor);
+	easyMDE.codemirror.focus();
+}
+document.getElementById("newchecklist").addEventListener("click", newCheckList);
+
+easyMDE.codemirror.setOption("extraKeys", {
+	"Ctrl-Enter": function(cm) {
+		var doc = easyMDE.codemirror.getDoc();
+		var cursor = easyMDE.codemirror.getCursor();
+		doc.replaceRange('**' + timestamp() + '** ', cursor);
+	}
+});
+</script>
