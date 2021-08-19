@@ -2,7 +2,9 @@
 
 The origin of this project is the hack that turns a browser tab into a text editor:
 
-[data:text/html, <html contenteditable>](data:text/html, <html contenteditable>)
+```
+data:text/html, <html contenteditable>
+```
 
 If you insert that for the URL, it'll turn that browser tab into a big textarea where you can type. You can save by hitting Ctrl-s and saving as an html page. That's a handy little hack when you want to quickly jot down a note, but it doesn't offer much of an editing experience, and all you have is a bunch of html files saved somewhere on your local computer.
 
