@@ -79,6 +79,12 @@ if (data) {
 	tmp = atob(data.data.content);
 	sha = data['data']['sha'];
 }
+
+if (tmp === "") {
+	var ct = new Date();
+	tmp = "# " + ct.toDateString() + "\n\n";
+}
+
 var easyMDE = new EasyMDE({ 
 	maxHeight: "70%", 
 	spellChecker: false,
