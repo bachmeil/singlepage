@@ -1,1 +1,176 @@
+<style>
+	.CodeMirror-lines {
+		font-family: Source Code Pro, Ubuntu Mono;
+		font-size: 122%;
+	}
+
+	.editor-preview {
+		font-family: Roboto;
+		font-size: 118%;
+	}
+
+	a {
+		font-family: Ubuntu;
+		font-size: 118%;
+	}
+
+	button {
+		background-color: white;
+		border: 1px silver solid;
+		padding: 5px;
+		border-radius: 4px;
+		font-family: Ubuntu;
+		font-size: 100%;
+	}
+</style>
+
+<script src="repoinfo.js"></script>
+<script src="https://unpkg.com/easymde/dist/easymde.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/easymde/dist/easymde.min.css">
+<link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/markdown-it-texmath/css/texmath.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/12.2.0/markdown-it.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it-texmath/texmath.min.js"></script>
+  
+<div style="max-width: 800px; margin: auto;">
+	<button id="thebutton">Save</button><br><br> 
+	<textarea></textarea><br><br>
+	<!-- Example of shortcut links -->
+	<a href="?name=index">Index</a> <a href="?name=thoughts">Thoughts</a>
+</div>
+
+<script type="module">
+import { Octokit, App } from "https://cdn.skypack.dev/octokit";
+
+//~ From repoinfo.js
+var repo_name = wiki_repo;
+
+//~ Parameters at the end of the URL are what make this work
+var searchParams = new URLSearchParams(location.search);
+
+//~ The default page - this gets changed if there are parameters
+var filename = "index.md";
+
+//~ Add the name parameter if you want to load/create a file
+//~ Include the path if you want it in a directory
+//~ Examples: ?name=jones1980 -> load/create jones1980.md at the top level
+//~ ?name=papers/jones1980 -> load/create jones1980.md in directory papers/
+if (searchParams.has("name")) {
+	filename = searchParams.get("name") + ".md";
+}
+
+//~ You might want an index of all files in a directory
+//~ Pass the dir argument
+//~ Example: ?dir=cars -> all files in the cars directory
+//~ Uses the Github API to create the index for you
+//~ Of course, you might want to build a better index yourself
+if (searchParams.has("dir")) {
+	filename = searchParams.get("dir");
+}
+
+//~ Load the Github API library
+const octokit = new Octokit({ auth: repo_token });
+
+//~ You might have specified a file or directory that doesn't exist
+//~ You have to do that if you want to create a file with a wiki link
+//~ This returns the file or directory object if it exists
+//~ If it fails, we know it's a file that needs to be created
+try {
+	var data = await octokit.rest.repos.getContent({
+	owner: repo_owner,
+	repo: repo_name,
+	path: filename,
+	});
+} catch {
+}
+
+//~ tmp holds the content temporarily
+//~ Whether it's a file or a directory index
+var tmp = "";
+var sha = "";
+
+//~ If data exists, we know the file/directory exists and data 
+//~ is holding the content
+if (data) {
+	if (searchParams.has("dir")) {
+		//~ Create the directory index
+		tmp = "# " + capitalize(filename) + "\n\n";
+		data.data.forEach(el => { tmp = tmp + "- [" + el.name + "](?name=" + searchParams.get("dir") + "/" + el.name.slice(0, -3) + ")\n" });
+	} else {
+		//~ File that exists, so
+		//~   - convert the Base64 encoded content to text
+		//~   - Get the sha so you can update the file if you make changes
+		tmp = atob(data.data.content);
+		sha = data['data']['sha'];
+	}
+}
+
+var md = markdownit({html: true}).use(texmath, { engine: katex });
+
+//~ Create a new markdown editor
+var easyMDE = new EasyMDE({ 
+	maxHeight: "70%",
+	spellChecker: false,
+	previewRender: function(txt) { return md.render(txt); }
+});
+
+//~ Insert the content in the editor
+easyMDE.value(tmp);
+
+//~ If the file/directory exists, start in preview mode
+if (data) {
+	if (!easyMDE.isPreviewActive()) {
+		easyMDE.togglePreview();
+	}
+//~ Otherwise you're creating a new file, so start in edit mode
+} else {
+	if (easyMDE.isPreviewActive()) {
+		easyMDE.togglePreview();
+	}
+}
+
+//~ This functions updates the file
+//~ If the file doesn't exist, it's created
+async function updateFile() {
+	//~ File doesn't exist if there's no sha
+	if (sha === "") {
+		var data = await octokit.request('PUT /repos/' + repo_owner + '/' + repo_name + '/contents/' + filename, {
+			owner: repo_owner,
+			repo: repo_name,
+			path: filename,
+			message: 'nm',
+			content: btoa(easyMDE.value())
+		})
+		//~ Update the sha after committing in case you want to make more edits
+		sha = data.data.content.sha;
+	} else {
+		//~ File exists if you're here, so it's an update
+		console.log(sha);
+		var data = await octokit.request('PUT /repos/' + repo_owner + '/' + repo_name + '/contents/' + filename, {
+			owner: repo_owner,
+			repo: repo_name,
+			path: filename,
+			message: 'nm',
+			sha: sha,
+			content: btoa(easyMDE.value())
+		})
+		console.log(data.data.content.sha);
+		//~ Update the sha after committing in case you want to make more edits
+		sha = data.data.content.sha;
+	}
+	//~ Done editing - when the editor goes back to preview mode, you know
+	//~ the file was saved.
+	easyMDE.togglePreview();
+}
+//~ Have to add to the save button from inside the module
+//~ Doesn't seem to work any other way
+document.getElementById("thebutton").addEventListener("click", updateFile);
+</script>
+    
+<script>
+	function capitalize(str) {
+		return str.charAt(0).toUpperCase() + str.slice(1);
+	}
+</script>
 
